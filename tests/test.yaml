@@ -1,0 +1,67 @@
+---
+project: "Test Project"
+base_url: "https://api.example.com" # Define the static base URL here
+# Global Environment Variables (Lowest Precedence)
+env:
+  # This version is the default for all endpoints
+  api_version: "v1"
+  # Global default identifier
+  id: "id-is-global-default"
+
+endpoints:
+  # Users Group Definition
+  users:
+    # Group Environment Variables (Mediuam Precedence)
+    # This overrides the global 'id' for all requests within 'users'
+    env:
+      id: "users-group-id-1"
+      # Note: 'api_version' is inherited from the global scope ("v1")
+
+    # Define requests as a map of unique names
+    requests:
+      get_all_users:
+        name: Get All Users
+        type: GET
+        # Uses 'api_version' (global) and 'id' (group)
+        # Resolves to: /v1/users
+        url: "${api_version}/users"
+
+      get_one_user:
+        name: Get One User
+        # Request Environment Variables (Highest Precedence)
+        env:
+          # This overrides 'id' from the 'users' group and global scope
+          id: "user-path-id-555"
+          user_id: "user_id_1"
+        type: GET
+        # Uses 'api_version' (global) and 'id' (request)
+        # Resolves to: /v1/users/user-path-id-555/detail
+        url: "${api_version}/users/${id}/detail"
+
+      create_one_user:
+        name: Create One User
+        type: POST
+        # Uses 'api_version' (global)
+        url: "${api_version}/users"
+        # JSON Request Body using the literal block scalar (|)
+        body: |
+          {
+            "name": "user",
+            "email": "name@email.com",
+            "password": "testing123"
+          }
+
+  # Products Group Definition
+  products:
+    # Group Environment Variables
+    env:
+      # This overrides global 'api_version' for all requests within 'products'
+      api_version: "v2"
+
+    requests:
+      list_products:
+        name: List Products (V2)
+        type: GET
+        # Uses 'api_version' (group)
+        # Resolves to: /v2/products
+        url: "${api_version}/products"
