@@ -19,14 +19,14 @@ type Request struct {
 	Env  map[string]string `yaml:"env"`
 }
 
-func (r *Request) getEnvVars() *[]string {
+func (r *Request) getEnvVars() []string {
 	re := regexp.MustCompile(URL_VAR_PATTERN)
 
 	matches := re.FindAllStringSubmatch(r.URL, -1)
 
 	if len(matches) == 0 {
 		log.Println("No variables found in URL")
-		return nil
+		return []string{}
 	}
 
 	extractedVars := make(map[string]struct{})
@@ -40,7 +40,7 @@ func (r *Request) getEnvVars() *[]string {
 	for v := range extractedVars {
 		uniqueList = append(uniqueList, v)
 	}
-	return &uniqueList
+	return uniqueList
 }
 
 func (r *Request) resolveUrlWithEnvVars(envVars map[string]string) string {
@@ -64,43 +64,68 @@ type GlobalConfig struct {
 	Endpoints map[string]EndpointGroup `yaml:"endpoints"`
 }
 
-func (gc *GlobalConfig) resolveRequest(requestName string) []map[string]string {
+// Global Yaml file cache
+var cfg GlobalConfig
+
+func (gc *GlobalConfig) GetEndpoints() map[string]EndpointGroup {
+	if gc == nil || len(gc.Endpoints) == 0 {
+		return nil
+	}
+
+	// for _, v := range gc.Endpoints {
+	// 	fmt.Printf("\nK::%s\n", v.Requests)
+	// }
+
+	return gc.Endpoints
+}
+
+// func (gc *GlobalConfig) GetEndpointsEnvs() map[string]string {
+// 	var endpointEnv map[string]string
+// 	for _, eg := range gc.Endpoints {
+// 		r, ok := eg.Requests[requestName]
+// 		if ok {
+// 			req = &r
+// 			endpointEnv = eg.Env
+// 			break
+// 		}
+// 	}
+// }
+
+func (gc *GlobalConfig) ResolveRequest(requestName string) string {
 	var req *Request
-	fmt.Printf("REQ BEFORE: %s\n", req)
 	var endpointEnv map[string]string
 	for _, eg := range gc.Endpoints {
-		k, ok := eg.Requests[requestName]
+		r, ok := eg.Requests[requestName]
 		if ok {
-			req = &k
+			req = &r
 			endpointEnv = eg.Env
 			break
 		}
 	}
-	fmt.Printf("REQ AFTER: %s\n", req)
 	envVars := req.getEnvVars()
 	envVarsFound := 0
 	resolvedEnvVars := map[string]string{}
-	for _, ev := range *envVars {
-		if envVarsFound == len(*envVars) {
+	for _, ev := range envVars {
+		if envVarsFound == len(envVars) {
 			break
 		}
 		// Check if env vars are in local Request Scope
-		if varible, found := req.Env[ev]; found == true {
-			resolvedEnvVars[ev] = varible
+		if variable, found := req.Env[ev]; found == true {
+			resolvedEnvVars[ev] = variable
 			envVarsFound += 1
 			continue
 		}
 
 		// Check if env vars are in Endpoint Group scope
-		if varible, found := endpointEnv[ev]; found == true {
-			resolvedEnvVars[ev] = varible
+		if variable, found := endpointEnv[ev]; found == true {
+			resolvedEnvVars[ev] = variable
 			envVarsFound += 1
 			continue
 		}
 
 		// Check if env vars are in global scope
-		if varible, found := gc.GlobalEnv[ev]; found == true {
-			resolvedEnvVars[ev] = varible
+		if variable, found := gc.GlobalEnv[ev]; found == true {
+			resolvedEnvVars[ev] = variable
 			envVarsFound += 1
 			continue
 		}
@@ -108,28 +133,20 @@ func (gc *GlobalConfig) resolveRequest(requestName string) []map[string]string {
 		log.Fatalf("Env var (%s) not found - aborting\n", ev)
 		// if not in any scope log error
 	}
-	fmt.Printf("envVars: %v+\n", envVars)
-	fmt.Printf("resolvedMaps: %v+\n", resolvedEnvVars)
+	fullUrl := req.resolveUrlWithEnvVars(resolvedEnvVars)
+	if len(gc.BaseURL) > 0 {
+		fullUrl = fmt.Sprintf("%s/%s", gc.BaseURL, fullUrl)
+	}
 
-	fmt.Printf("endpointEnv AFTER: %s\n", endpointEnv)
-
-	// Take resolved env Vars and substitute them in to the URL string for the correct values
-	realUrl := req.resolveUrlWithEnvVars(resolvedEnvVars)
-	fullUrl := fmt.Sprintf("%s/%s", gc.BaseURL, realUrl) // TODO: parse the BaseURL for envs vars
-	fmt.Printf("ResolvedURL BEFORE: %s\n", req.URL)
-	fmt.Printf("ResolvedURL AFTER: %s\n", realUrl)
-	fmt.Printf("FullUrl: %s\n", fullUrl)
-
-	return nil
+	return fullUrl
 }
 
-func ParseYaml(yamlData *string) {
-	var cfg GlobalConfig
+func ParseYaml(yamlData *string) GlobalConfig {
 	if err := yaml.Unmarshal([]byte(*yamlData), &cfg); err != nil {
 		log.Fatalf("failed unmarshalling yaml data: %s\n", err)
 	}
 
-	log.Printf("Successfully unmarshalled yamldata")
-
-	cfg.resolveRequest("get_all_users")
+	log.Printf("Successfully unmarshalled yaml data")
+	cfg.GetEndpoints()
+	return cfg
 }
