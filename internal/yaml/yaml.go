@@ -1,6 +1,7 @@
 package yaml
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -91,7 +92,7 @@ func (gc *GlobalConfig) GetEndpoints() map[string]EndpointGroup {
 // 	}
 // }
 
-func (gc *GlobalConfig) ResolveRequest(requestName string) string {
+func (gc *GlobalConfig) ResolveRequest(requestName string) (string, error) {
 	var req *Request
 	var endpointEnv map[string]string
 	for _, eg := range gc.Endpoints {
@@ -101,6 +102,9 @@ func (gc *GlobalConfig) ResolveRequest(requestName string) string {
 			endpointEnv = eg.Env
 			break
 		}
+	}
+	if req == nil {
+		return "", errors.New(fmt.Sprintf("No requests found matching name %s\n", requestName))
 	}
 	envVars := req.getEnvVars()
 	envVarsFound := 0
@@ -138,7 +142,7 @@ func (gc *GlobalConfig) ResolveRequest(requestName string) string {
 		fullUrl = fmt.Sprintf("%s/%s", gc.BaseURL, fullUrl)
 	}
 
-	return fullUrl
+	return fullUrl, nil
 }
 
 func ParseYaml(yamlData *string) GlobalConfig {
